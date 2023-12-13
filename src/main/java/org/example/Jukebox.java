@@ -83,7 +83,7 @@ public class Jukebox {
             String selectQuery = "SELECT playlist_name FROM Playlists WHERE user_id = ?";
             PreparedStatement selectStatement = connection.prepareStatement(selectQuery);
             System.out.println(userId);
-            selectStatement.setInt(1, Integer.parseInt(userId));
+            selectStatement.setString(1,userId);
             ResultSet resultSet = selectStatement.executeQuery();
 
             System.out.println("Playlists:");
@@ -207,26 +207,26 @@ public class Jukebox {
     }
     public void playPlaylist(String playlistName, Scanner scanner) {
         try {
-            int playlistId = findPlaylistIdByName(playlistName);
-            if (playlistId == -1) {
+            String playlistId = findPlaylistIdByName(playlistName);
+            if (playlistId == null) {
                 System.out.println("Playlist not found.");
                 return;
             }
 
-            String query = "SELECT * FROM songPlaylist WHERE playlist_id = ?";
+            String query = "SELECT * FROM songplaylist WHERE playlistId = ?";
             Connection connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/jukebox", "root", "Logarox_10");
             PreparedStatement preparedStatement = connection.prepareStatement(query);
-            preparedStatement.setInt(1, playlistId);
+            preparedStatement.setString(1, playlistId);
             ResultSet resultSet = preparedStatement.executeQuery();
 
             List<Song> playlistSongs = new ArrayList<>();
 
             while (resultSet.next()) {
-                String songTitle = resultSet.getString("song_name");
+                String songTitle = resultSet.getString("title");
                 String artist = resultSet.getString("artist");
                 String album = resultSet.getString("album");
                 String genre = resultSet.getString("genre");
-                String filePath = resultSet.getString("file_path");
+                String filePath = resultSet.getString("filePath");
                 Song song = new Song(songTitle, artist, album, genre, filePath);
                 playlistSongs.add(song);
             }
@@ -323,21 +323,21 @@ public class Jukebox {
         }
     }
 
-    private int findPlaylistIdByName(String playlistName) {
+    private String findPlaylistIdByName(String playlistName) {
         try {
             Connection connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/jukebox", "root", "Logarox_10");
-            String query = "SELECT playlist_id FROM Playlists WHERE playlist_name = ?";
+            String query = "SELECT playlist_name FROM Playlists WHERE playlist_name = ?";
             PreparedStatement preparedStatement = connection.prepareStatement(query);
             preparedStatement.setString(1, playlistName);
             ResultSet resultSet = preparedStatement.executeQuery();
 
             if (resultSet.next()) {
-                return resultSet.getInt("playlist_id");
+                return resultSet.getString("playlist_name");
             }
         } catch (SQLException e) {
             System.err.println("Error finding playlist ID: " + e.getMessage());
         }
-        return -1;
+        return null;
     }
 
     private Song findSongByTitle(String title) {
@@ -351,8 +351,8 @@ public class Jukebox {
 
 
     public void addSongToPlaylist(String playlistName, String songTitle) {
-        int playlistId = findPlaylistIdByName(playlistName);
-        if (playlistId == -1) {
+        String playlistId = findPlaylistIdByName(playlistName);
+        if (playlistId == null) {
             System.out.println("Playlist not found.");
             return;
         }
@@ -364,12 +364,14 @@ public class Jukebox {
         }
 
         try (Connection connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/jukebox", "root", "Logarox_10")) {
-            String insertQuery = "INSERT INTO playlist VALUES (?, ?, ?, ?, ?, ?)";
+            System.out.println("Connection successful");
+            String insertQuery = "INSERT INTO songplaylist VALUES (?, ?, ?, ?, ?, ?)";
             PreparedStatement insertStatement = connection.prepareStatement(insertQuery);
-            insertStatement.setInt(1, playlistId);
-            insertStatement.setString(3, song.getTitle());
-            insertStatement.setString(4, song.getArtist());
-            insertStatement.setString(5, song.getAlbum());
+            insertStatement.setString(1, playlistId);
+            insertStatement.setString(2, song.getTitle());
+            insertStatement.setString(3, song.getArtist());
+            insertStatement.setString(4, song.getAlbum());
+            insertStatement.setString(5,song.getGenre());
             insertStatement.setString(6, song.getFilePath());
             insertStatement.executeUpdate();
             insertStatement.close();
@@ -413,17 +415,17 @@ public class Jukebox {
         }
     }
 
-    public void deletePlaylist(int playlistId) {
+    public void deletePlaylist(String playlistId) {
         try (Connection connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/jukebox", "root", "Logarox_10")) {
 
-            String deleteSongPlaylistQuery = "DELETE FROM songplaylist WHERE playlist_id = ?";
+            String deleteSongPlaylistQuery = "DELETE FROM songplaylist WHERE playlistId = ?";
             PreparedStatement deleteSongPlaylistStatement = connection.prepareStatement(deleteSongPlaylistQuery);
-            deleteSongPlaylistStatement.setInt(1, playlistId);
+            deleteSongPlaylistStatement.setString(1, playlistId);
             deleteSongPlaylistStatement.executeUpdate();
 
-            String deleteQuery = "DELETE FROM songplaylist WHERE playlist_id = ?";
+            String deleteQuery = "DELETE FROM Playlists WHERE playlist_name = ?";
             PreparedStatement deleteStatement = connection.prepareStatement(deleteQuery);
-            deleteStatement.setInt(1, playlistId);
+            deleteStatement.setString(1, playlistId);
             int rowsAffected = deleteStatement.executeUpdate();
 
             if (rowsAffected > 0) {
@@ -578,9 +580,11 @@ public class Jukebox {
                     break;
                 case 8:
                     System.out.println("Enter the playlist name to delete:");
-                    String deletePlaylistName = scanner.nextLine();
-                    int playlistId = jukebox.getPlaylistIdByName(deletePlaylistName);
-                    if (playlistId != -1) {
+                    Scanner sc=new Scanner(System.in);
+                    String deletePlaylistName = sc.nextLine();
+                    String playlistId = String.valueOf(jukebox.findPlaylistIdByName(deletePlaylistName));
+                    System.out.println("playlist id="+playlistId);
+                    if (playlistId != null) {
                         jukebox.deletePlaylist(playlistId);
                     } else {
                         System.out.println("Playlist not found.");
